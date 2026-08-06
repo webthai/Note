@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Note — แดชบอร์ด</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="app-shell">
+  <nav class="sidebar" id="sidebar"></nav>
+
+  <main class="main">
+    <div class="page-head">
+      <div>
+        <div class="page-eyebrow">ภาพรวม</div>
+        <h1>แดชบอร์ด</h1>
+      </div>
+      <div class="page-date mono" id="todayLabel"></div>
+    </div>
+
+    <div class="stat-row" id="statRow"></div>
+
+    <div class="dash-grid">
+      <div class="panel">
+        <div class="panel-head">
+          <div class="panel-title">ปฏิทิน</div>
+        </div>
+        <div class="panel-body" id="calWrap"></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <div class="panel-title" id="agendaTitle">รายการวันนี้</div>
+        </div>
+        <div class="panel-body" id="agendaWrap"></div>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-top:24px;">
+      <div class="panel-head">
+        <div class="panel-title" id="ledgerTitle">สมุดบันทึกเดือนนี้</div>
+      </div>
+      <div class="panel-body">
+        <table class="ledger" id="ledgerTable">
+          <thead>
+            <tr><th>วันที่</th><th>ประเภท</th><th>รายการ</th><th>สถานะ</th></tr>
+          </thead>
+          <tbody id="ledgerBody"></tbody>
+        </table>
+        <div id="ledgerEmpty" class="empty-state" style="display:none; margin-top:16px;">
+          <div class="glyph">—</div>
+          ยังไม่มีรายการในเดือนนี้
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script src="js/config.js"></script>
+<script src="js/api.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/calendar-widget.js"></script>
+<script>
+  const user = Auth.requireLogin();
+  renderSidebar('dashboard');
+
+  const todayLabel = document.getElementById('todayLabel');
+  todayLabel.textContent = fmtDate(fmtDateInput(new Date()));
+
+  let state = { tasks: [], notes: [], events: [], holidays: [] };
+  let viewYear = new Date().getFullYear();
+  let viewMonth = new Date().getMonth();
+  let selectedDate = fmtDateInput(new Date());
+
+  async function load() {
+    try {
+      const data = await Api.call('getDashboard', { userId: user.id });
+      state = data;
+      renderStats();
+      renderCalendar();
+      renderAgenda();
+      renderLedger();
+    } catch (err) {
+      toast(err.message);
+    }
+  }
+
+  function renderStats() {
+    const today = new Date(); today.setHours(0,0,0,0);
+    const in7 = new Date(today); in7.setDate(in7.getDate() + 7);
+
+    const overdue = state.tasks.filter(t => isOverdue(t.dueDate, t.status));
+    const dueSoon = state.tasks.filter(t => t.status !== 'done' && t.dueDate && new Date(t.dueDate) >= today && new Date(t.dueDate) <= in7);
+    const doneCount = state.tasks.filter(t => t.status === 'done').length;
+
+    const nextHoliday = [...state.holidays]
+      .filter(h => new Date(h.date) >= today)
+      .sort((a,b) => new Date(a.date) - new Date(b.date))[0];
+
+    const stats = [
+      { label: 'งานค้าง / เลยกำหนด', value: overdue.length, foot: overdue[0] ? escapeHtml(overdue[0].title) : 'ไม่มีงานค้าง' },
+      { label: 'ใกล้ครบกำหนด (7 วัน)', value: dueSoon.length, foot: dueSoon[0] ? escapeHtml(dueSoon[0].title) : '—' },
+      { label: 'บันทึกทั้งหมด', value: state.notes.length, foot: state.notes[0] ? 'ล่าสุด: ' + escapeHtml(state.notes[0].title) : 'ยังไม่มีบันทึก' },
+      { label: 'วันหยุดถัดไป', value: nextHoliday ? fmtDate(nextHoliday.date) : '—', foot: nextHoliday ? escapeHtml(nextHoliday.name) : 'ไม่มีข้อมูล' },
+    ];
+
+    document.getElementById('statRow').innerHTML = stats.map(s => `
+      <div class="stat-card">
+        <div class="stat-label">${s.label}</div>
+        <div class="stat-value">${s.value}</div>
+        <div class="stat-foot">${s.foot}</div>
+      </div>
+    `).join('');
+  }
+
+  function renderCalendar() {
+    const entriesByDate = buildEntriesByDate(state);
+    renderMonthCalendar(document.getElementById('calWrap'), {
+      year: viewYear, month: viewMonth, entriesByDate, selectedDate,
+      onSelectDay: (dateStr) => { selectedDate = dateStr; renderCalendar(); renderAgenda(); },
+      onNavigate: (dir) => {
+        if (dir === '0') { const n = new Date(); viewYear = n.getFullYear(); viewMonth = n.getMonth(); selectedDate = fmtDateInput(n); }
+        else { viewMonth += parseInt(dir); if (viewMonth < 0) { viewMonth = 11; viewYear--; } if (viewMonth > 11) { viewMonth = 0; viewYear++; } }
+        renderCalendar(); renderAgenda();
+      }
+    });
+  }
+
+  function entriesForDate(dateStr) {
+    const list = [];
+    state.tasks.forEach(t => { if ((t.dueDate || '').slice(0,10) === dateStr) list.push({ kind: 'งาน', title: t.title, sub: t.status === 'done' ? 'เสร็จแล้ว' : (t.priority || 'ปกติ') }); });
+    state.events.forEach(e => { if ((e.date || '').slice(0,10) === dateStr) list.push({ kind: e.type === 'holiday' ? 'วันหยุด' : (e.type === 'reminder' ? 'เตือนความจำ' : 'กิจกรรม'), title: e.title, sub: e.detail || '' }); });
+    state.holidays.forEach(h => { if ((h.date || '').slice(0,10) === dateStr) list.push({ kind: 'วันหยุด', title: h.name, sub: '' }); });
+    return list;
+  }
+
+  function renderAgenda() {
+    document.getElementById('agendaTitle').textContent = 'รายการวันที่ ' + fmtDate(selectedDate);
+    const items = entriesForDate(selectedDate);
+    const wrap = document.getElementById('agendaWrap');
+    if (items.length === 0) {
+      wrap.innerHTML = `<div class="agenda-empty">ไม่มีรายการในวันนี้</div>`;
+      return;
+    }
+    wrap.innerHTML = items.map(i => `
+      <div class="agenda-item">
+        <div class="agenda-kind">${i.kind}</div>
+        <div>
+          <div class="agenda-title">${escapeHtml(i.title)}</div>
+          ${i.sub ? `<div class="agenda-sub">${escapeHtml(i.sub)}</div>` : ''}
+        </div>
+      </div>
+    `).join('');
+  }
+
+  function renderLedger() {
+    const now = new Date();
+    const y = now.getFullYear(), m = now.getMonth();
+    document.getElementById('ledgerTitle').textContent = `สมุดบันทึกเดือน ${THAI_MONTHS[m]} ${y + 543}`;
+
+    let rows = [];
+    state.tasks.forEach(t => {
+      if (!t.dueDate) return;
+      const d = new Date(t.dueDate);
+      if (d.getFullYear() === y && d.getMonth() === m) {
+        rows.push({ date: t.dueDate, type: 'งาน', title: t.title, status: t.status === 'done' ? '<span class="stamp-done">เสร็จ</span>' : (isOverdue(t.dueDate, t.status) ? '<span class="tag">เลยกำหนด</span>' : '<span class="tag outline">กำลังทำ</span>') });
+      }
+    });
+    state.events.forEach(e => {
+      const d = new Date(e.date);
+      if (d.getFullYear() === y && d.getMonth() === m) {
+        rows.push({ date: e.date, type: e.type === 'holiday' ? 'วันหยุด' : (e.type === 'reminder' ? 'เตือนความจำ' : 'กิจกรรม'), title: e.title, status: '' });
+      }
+    });
+    state.holidays.forEach(h => {
+      const d = new Date(h.date);
+      if (d.getFullYear() === y && d.getMonth() === m) {
+        rows.push({ date: h.date, type: 'วันหยุด', title: h.name, status: '' });
+      }
+    });
+    rows.sort((a,b) => new Date(a.date) - new Date(b.date));
+
+    const tbody = document.getElementById('ledgerBody');
+    const empty = document.getElementById('ledgerEmpty');
+    if (rows.length === 0) {
+      tbody.innerHTML = ''; empty.style.display = 'block';
+      return;
+    }
+    empty.style.display = 'none';
+    tbody.innerHTML = rows.map(r => `
+      <tr>
+        <td class="ledger-date">${fmtDate(r.date)}</td>
+        <td><span class="tag outline">${r.type}</span></td>
+        <td>${escapeHtml(r.title)}</td>
+        <td>${r.status}</td>
+      </tr>
+    `).join('');
+  }
+
+  load();
+</script>
+</body>
+</html>

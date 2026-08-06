@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Note — ตั้งค่า</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="app-shell">
+  <nav class="sidebar" id="sidebar"></nav>
+
+  <main class="main">
+    <div class="page-head">
+      <div>
+        <div class="page-eyebrow">สำหรับผู้ดูแลระบบ</div>
+        <h1>ตั้งค่า</h1>
+      </div>
+    </div>
+
+    <div class="panel mb-16">
+      <div class="panel-head">
+        <div class="panel-title">ผู้ใช้งานทั้งหมด</div>
+      </div>
+      <div class="panel-body">
+        <table class="ledger">
+          <thead><tr><th>ชื่อผู้ใช้</th><th>สิทธิ์</th><th>สมัครเมื่อ</th><th></th></tr></thead>
+          <tbody id="usersBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <div class="panel-title">วันหยุด (ใช้ร่วมกันทุกคน)</div>
+        <button class="btn btn-sm" id="addHolidayBtn">+ เพิ่มวันหยุด</button>
+      </div>
+      <div class="panel-body">
+        <table class="ledger">
+          <thead><tr><th>วันที่</th><th>ชื่อวันหยุด</th><th></th></tr></thead>
+          <tbody id="holidaysBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script src="js/config.js"></script>
+<script src="js/api.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/ui.js"></script>
+<script>
+  const user = Auth.requireAdmin();
+  renderSidebar('settings');
+
+  async function loadUsers() {
+    try {
+      const data = await Api.call('listUsers', { userId: user.id });
+      const tbody = document.getElementById('usersBody');
+      tbody.innerHTML = data.users.map(u => `
+        <tr>
+          <td>${escapeHtml(u.username)} ${u.id === user.id ? '<span class="tag outline">คุณ</span>' : ''}</td>
+          <td><span class="tag ${u.role === 'admin' ? '' : 'outline'}">${u.role === 'admin' ? 'Admin' : 'Member'}</span></td>
+          <td class="ledger-date">${fmtDate(u.createdAt)}</td>
+          <td style="text-align:right;">
+            ${u.id !== user.id ? `
+              <button class="btn-ghost btn-sm" onclick="toggleRole('${u.id}','${u.role === 'admin' ? 'member' : 'admin'}')">${u.role === 'admin' ? 'ลดสิทธิ์' : 'ตั้งเป็นแอดมิน'}</button>
+              <button class="btn-danger btn-sm" onclick="removeUser('${u.id}')">ลบ</button>
+            ` : ''}
+          </td>
+        </tr>
+      `).join('');
+    } catch (err) { toast(err.message); }
+  }
+
+  async function toggleRole(id, role) {
+    try { await Api.call('setUserRole', { userId: user.id, id, role }); toast('อัปเดตสิทธิ์แล้ว'); loadUsers(); }
+    catch (err) { toast(err.message); }
+  }
+
+  async function removeUser(id) {
+    if (!confirm('ลบผู้ใช้นี้หรือไม่? ข้อมูลบันทึก/งานของผู้ใช้จะยังอยู่ในชีตแต่จะเข้าระบบไม่ได้อีก')) return;
+    try { await Api.call('deleteUser', { userId: user.id, id }); toast('ลบผู้ใช้แล้ว'); loadUsers(); }
+    catch (err) { toast(err.message); }
+  }
+
+  async function loadHolidays() {
+    try {
+      const data = await Api.call('holidaysList', {});
+      const tbody = document.getElementById('holidaysBody');
+      if (data.holidays.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="3" class="text-soft">ยังไม่มีข้อมูลวันหยุด</td></tr>`;
+        return;
+      }
+      const sorted = [...data.holidays].sort((a,b) => new Date(a.date) - new Date(b.date));
+      tbody.innerHTML = sorted.map(h => `
+        <tr>
+          <td class="ledger-date">${fmtDate(h.date)}</td>
+          <td>${escapeHtml(h.name)}</td>
+          <td style="text-align:right;"><button class="btn-danger btn-sm" onclick="removeHoliday('${h.date}')">ลบ</button></td>
+        </tr>
+      `).join('');
+    } catch (err) { toast(err.message); }
+  }
+
+  async function removeHoliday(date) {
+    if (!confirm('ลบวันหยุดนี้หรือไม่?')) return;
+    try { await Api.call('holidayDelete', { userId: user.id, date }); toast('ลบแล้ว'); loadHolidays(); }
+    catch (err) { toast(err.message); }
+  }
+
+  document.getElementById('addHolidayBtn').addEventListener('click', () => {
+    openModal(`
+      <div class="modal">
+        <div class="modal-head"><h3>เพิ่มวันหยุด</h3><button class="modal-close" onclick="closeModal()">×</button></div>
+        <div class="modal-body">
+          <div class="field"><label>วันที่</label><input type="date" id="hDate"></div>
+          <div class="field"><label>ชื่อวันหยุด</label><input type="text" id="hName" placeholder="เช่น วันสงกรานต์"></div>
+        </div>
+        <div class="modal-foot">
+          <button class="btn-ghost" onclick="closeModal()">ยกเลิก</button>
+          <button class="btn" id="hSave">บันทึก</button>
+        </div>
+      </div>
+    `);
+    document.getElementById('hSave').addEventListener('click', async (e) => {
+      const date = document.getElementById('hDate').value;
+      const name = document.getElementById('hName').value.trim();
+      if (!date || !name) { toast('กรุณากรอกให้ครบ'); return; }
+      setLoading(e.target, true);
+      try {
+        await Api.call('holidayCreate', { userId: user.id, date, name });
+        closeModal(); toast('เพิ่มแล้ว'); loadHolidays();
+      } catch (err) { toast(err.message); setLoading(e.target, false); }
+    });
+  });
+
+  loadUsers();
+  loadHolidays();
+</script>
+</body>
+</html>

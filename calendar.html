@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Note — ปฏิทิน</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="app-shell">
+  <nav class="sidebar" id="sidebar"></nav>
+
+  <main class="main">
+    <div class="page-head">
+      <div>
+        <div class="page-eyebrow">กำหนดการ</div>
+        <h1>ปฏิทิน</h1>
+      </div>
+      <button class="btn" id="addEventBtn">+ เพิ่มรายการ</button>
+    </div>
+
+    <div class="dash-grid" style="grid-template-columns: 1.6fr 1fr;">
+      <div class="panel">
+        <div class="panel-body" id="calWrap"></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head">
+          <div class="panel-title" id="agendaTitle">รายการ</div>
+        </div>
+        <div class="panel-body" id="agendaWrap"></div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script src="js/config.js"></script>
+<script src="js/api.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/calendar-widget.js"></script>
+<script>
+  const user = Auth.requireLogin();
+  renderSidebar('calendar');
+
+  let state = { tasks: [], notes: [], events: [], holidays: [] };
+  let viewYear = new Date().getFullYear();
+  let viewMonth = new Date().getMonth();
+  let selectedDate = fmtDateInput(new Date());
+
+  async function load() {
+    try {
+      state = await Api.call('getDashboard', { userId: user.id });
+      renderCalendar();
+      renderAgenda();
+    } catch (err) { toast(err.message); }
+  }
+
+  function renderCalendar() {
+    const entriesByDate = buildEntriesByDate(state);
+    renderMonthCalendar(document.getElementById('calWrap'), {
+      year: viewYear, month: viewMonth, entriesByDate, selectedDate,
+      onSelectDay: (dateStr) => { selectedDate = dateStr; renderCalendar(); renderAgenda(); },
+      onNavigate: (dir) => {
+        if (dir === '0') { const n = new Date(); viewYear = n.getFullYear(); viewMonth = n.getMonth(); selectedDate = fmtDateInput(n); }
+        else { viewMonth += parseInt(dir); if (viewMonth < 0) { viewMonth = 11; viewYear--; } if (viewMonth > 11) { viewMonth = 0; viewYear++; } }
+        renderCalendar(); renderAgenda();
+      }
+    });
+  }
+
+  function entriesForDate(dateStr) {
+    const list = [];
+    state.tasks.forEach(t => { if ((t.dueDate||'').slice(0,10) === dateStr) list.push({ kind: 'งาน', title: t.title, id: t.id, sub: t.status === 'done' ? 'เสร็จแล้ว' : (t.priority||'ปกติ') }); });
+    state.events.forEach(e => { if ((e.date||'').slice(0,10) === dateStr) list.push({ kind: e.type === 'holiday' ? 'วันหยุด' : (e.type === 'reminder' ? 'เตือนความจำ' : 'กิจกรรม'), title: e.title, id: e.id, sub: e.detail||'', editable: true, raw: e }); });
+    state.holidays.forEach(h => { if ((h.date||'').slice(0,10) === dateStr) list.push({ kind: 'วันหยุด', title: h.name, sub: '' }); });
+    return list;
+  }
+
+  function renderAgenda() {
+    document.getElementById('agendaTitle').textContent = fmtDate(selectedDate);
+    const items = entriesForDate(selectedDate);
+    const wrap = document.getElementById('agendaWrap');
+    if (items.length === 0) {
+      wrap.innerHTML = `<div class="agenda-empty">ไม่มีรายการในวันนี้ — กด "เพิ่มรายการ" เพื่อสร้างใหม่</div>`;
+      return;
+    }
+    wrap.innerHTML = items.map(i => `
+      <div class="agenda-item">
+        <div class="agenda-kind">${i.kind}</div>
+        <div style="flex:1;">
+          <div class="agenda-title">${escapeHtml(i.title)}</div>
+          ${i.sub ? `<div class="agenda-sub">${escapeHtml(i.sub)}</div>` : ''}
+        </div>
+        ${i.editable ? `<button class="btn-ghost btn-sm" onclick="deleteEvent('${i.id}')">ลบ</button>` : ''}
+      </div>
+    `).join('');
+  }
+
+  async function deleteEvent(id) {
+    if (!confirm('ลบรายการนี้หรือไม่?')) return;
+    try {
+      await Api.call('eventDelete', { id, userId: user.id });
+      toast('ลบแล้ว');
+      await load();
+    } catch (err) { toast(err.message); }
+  }
+
+  document.getElementById('addEventBtn').addEventListener('click', () => {
+    openModal(`
+      <div class="modal">
+        <div class="modal-head"><h3>เพิ่มรายการในปฏิทิน</h3><button class="modal-close" onclick="closeModal()">×</button></div>
+        <div class="modal-body">
+          <div class="field"><label>ชื่อรายการ</label><input type="text" id="evTitle" required></div>
+          <div class="field-row">
+            <div class="field"><label>วันที่</label><input type="date" id="evDate" value="${selectedDate}" required></div>
+            <div class="field"><label>ประเภท</label>
+              <select id="evType">
+                <option value="personal">กิจกรรม</option>
+                <option value="reminder">เตือนความจำ</option>
+                <option value="holiday">วันหยุดส่วนตัว</option>
+              </select>
+            </div>
+          </div>
+          <div class="field"><label>รายละเอียด (ถ้ามี)</label><textarea id="evDetail" rows="3"></textarea></div>
+        </div>
+        <div class="modal-foot">
+          <button class="btn-ghost" onclick="closeModal()">ยกเลิก</button>
+          <button class="btn" id="saveEventBtn">บันทึก</button>
+        </div>
+      </div>
+    `);
+    document.getElementById('saveEventBtn').addEventListener('click', async (e) => {
+      const title = document.getElementById('evTitle').value.trim();
+      const date = document.getElementById('evDate').value;
+      const type = document.getElementById('evType').value;
+      const detail = document.getElementById('evDetail').value.trim();
+      if (!title || !date) { toast('กรุณากรอกชื่อและวันที่'); return; }
+      setLoading(e.target, true);
+      try {
+        await Api.call('eventCreate', { userId: user.id, title, date, type, detail });
+        closeModal();
+        toast('เพิ่มรายการแล้ว');
+        selectedDate = date;
+        await load();
+      } catch (err) { toast(err.message); setLoading(e.target, false); }
+    });
+  });
+
+  load();
+</script>
+</body>
+</html>

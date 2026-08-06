@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Note — บันทึก</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="app-shell">
+  <nav class="sidebar" id="sidebar"></nav>
+
+  <main class="main">
+    <div class="page-head">
+      <div>
+        <div class="page-eyebrow">จดไว้กันลืม</div>
+        <h1>บันทึก</h1>
+      </div>
+      <button class="btn" id="newNoteBtn">+ บันทึกใหม่</button>
+    </div>
+
+    <div class="notes-layout">
+      <div class="notes-list" id="notesList"></div>
+      <div class="note-editor" id="noteEditor">
+        <div class="empty-state" style="margin: auto;">
+          <div class="glyph">✎</div>
+          เลือกบันทึกทางซ้าย หรือกด "บันทึกใหม่" เพื่อเริ่มเขียน
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script src="js/config.js"></script>
+<script src="js/api.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/ui.js"></script>
+<script>
+  const user = Auth.requireLogin();
+  renderSidebar('notes');
+
+  let notes = [];
+  let activeId = null;
+  let dirty = false;
+
+  async function load() {
+    try {
+      const data = await Api.call('notesList', { userId: user.id });
+      notes = data.notes;
+      renderList();
+      if (activeId && !notes.find(n => n.id === activeId)) { activeId = null; renderEditor(); }
+    } catch (err) { toast(err.message); }
+  }
+
+  function renderList() {
+    const el = document.getElementById('notesList');
+    if (notes.length === 0) {
+      el.innerHTML = `<div class="empty-state">ยังไม่มีบันทึก</div>`;
+      return;
+    }
+    el.innerHTML = notes.map(n => `
+      <div class="note-item ${n.id === activeId ? 'active' : ''}" data-id="${n.id}">
+        <div class="note-item-title">${escapeHtml(n.title || 'ไม่มีชื่อ')}</div>
+        <div class="note-item-sub">${fmtDate(n.updatedAt)}</div>
+      </div>
+    `).join('');
+    el.querySelectorAll('.note-item').forEach(item => {
+      item.addEventListener('click', () => {
+        if (dirty && !confirm('มีการแก้ไขที่ยังไม่บันทึก ต้องการออกจากบันทึกนี้หรือไม่?')) return;
+        activeId = item.dataset.id;
+        dirty = false;
+        renderList();
+        renderEditor();
+      });
+    });
+  }
+
+  function renderEditor() {
+    const editor = document.getElementById('noteEditor');
+    const note = notes.find(n => n.id === activeId);
+    if (!note) {
+      editor.innerHTML = `<div class="empty-state" style="margin:auto;"><div class="glyph">✎</div>เลือกบันทึกทางซ้าย หรือกด "บันทึกใหม่" เพื่อเริ่มเขียน</div>`;
+      return;
+    }
+    editor.innerHTML = `
+      <input type="text" id="titleInput" value="${escapeHtml(note.title)}" placeholder="ชื่อบันทึก">
+      <textarea id="contentInput" placeholder="เขียนบันทึกของคุณที่นี่...">${escapeHtml(note.content)}</textarea>
+      <div class="flex-between mt-16">
+        <input type="text" id="tagsInput" value="${escapeHtml(note.tags)}" placeholder="แท็ก (คั่นด้วยจุลภาค)" style="border:1px solid var(--line-strong); padding:7px 10px; font-size:12.5px; width:260px;">
+        <div>
+          <button class="btn-danger btn-sm" id="deleteBtn">ลบ</button>
+          <button class="btn btn-sm" id="saveBtn">บันทึก</button>
+        </div>
+      </div>
+    `;
+    document.getElementById('titleInput').addEventListener('input', () => dirty = true);
+    document.getElementById('contentInput').addEventListener('input', () => dirty = true);
+    document.getElementById('tagsInput').addEventListener('input', () => dirty = true);
+
+    document.getElementById('saveBtn').addEventListener('click', async (e) => {
+      const title = document.getElementById('titleInput').value.trim() || 'ไม่มีชื่อ';
+      const content = document.getElementById('contentInput').value;
+      const tags = document.getElementById('tagsInput').value.trim();
+      setLoading(e.target, true);
+      try {
+        await Api.call('noteUpdate', { id: note.id, userId: user.id, title, content, tags });
+        dirty = false;
+        toast('บันทึกแล้ว');
+        await load();
+      } catch (err) { toast(err.message); }
+      setLoading(e.target, false);
+    });
+
+    document.getElementById('deleteBtn').addEventListener('click', async () => {
+      if (!confirm('ลบบันทึกนี้ถาวรหรือไม่?')) return;
+      try {
+        await Api.call('noteDelete', { id: note.id, userId: user.id });
+        activeId = null; dirty = false;
+        toast('ลบแล้ว');
+        await load();
+      } catch (err) { toast(err.message); }
+    });
+  }
+
+  document.getElementById('newNoteBtn').addEventListener('click', async () => {
+    if (dirty && !confirm('มีการแก้ไขที่ยังไม่บันทึก ต้องการสร้างบันทึกใหม่หรือไม่?')) return;
+    try {
+      const data = await Api.call('noteCreate', { userId: user.id, title: 'บันทึกใหม่', content: '', tags: '' });
+      dirty = false;
+      await load();
+      activeId = data.note.id;
+      renderList();
+      renderEditor();
+      document.getElementById('titleInput').focus();
+      document.getElementById('titleInput').select();
+    } catch (err) { toast(err.message); }
+  });
+
+  window.addEventListener('beforeunload', (e) => { if (dirty) { e.preventDefault(); e.returnValue = ''; } });
+
+  load();
+</script>
+</body>
+</html>

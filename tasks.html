@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Note — งานที่ต้องทำ</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="app-shell">
+  <nav class="sidebar" id="sidebar"></nav>
+
+  <main class="main">
+    <div class="page-head">
+      <div>
+        <div class="page-eyebrow">จัดการงาน</div>
+        <h1>งานที่ต้องทำ</h1>
+      </div>
+      <button class="btn" id="newTaskBtn">+ งานใหม่</button>
+    </div>
+
+    <div class="kanban">
+      <div class="kanban-col" data-status="todo">
+        <div class="kanban-head"><span>ยังไม่เริ่ม</span><span class="kanban-count" id="count-todo">0</span></div>
+        <div class="kanban-body" id="col-todo"></div>
+      </div>
+      <div class="kanban-col" data-status="doing">
+        <div class="kanban-head"><span>กำลังทำ</span><span class="kanban-count" id="count-doing">0</span></div>
+        <div class="kanban-body" id="col-doing"></div>
+      </div>
+      <div class="kanban-col" data-status="done">
+        <div class="kanban-head"><span>เสร็จแล้ว</span><span class="kanban-count" id="count-done">0</span></div>
+        <div class="kanban-body" id="col-done"></div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script src="js/config.js"></script>
+<script src="js/api.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/ui.js"></script>
+<script>
+  const user = Auth.requireLogin();
+  renderSidebar('tasks');
+
+  let tasks = [];
+  const STATUS_LABEL = { todo: 'ยังไม่เริ่ม', doing: 'กำลังทำ', done: 'เสร็จแล้ว' };
+  const PRIORITY_LABEL = { high: 'สูง', normal: 'ปกติ', low: 'ต่ำ' };
+
+  async function load() {
+    try {
+      const data = await Api.call('tasksList', { userId: user.id });
+      tasks = data.tasks;
+      renderBoard();
+    } catch (err) { toast(err.message); }
+  }
+
+  function renderBoard() {
+    ['todo','doing','done'].forEach(status => {
+      const items = tasks.filter(t => (t.status || 'todo') === status);
+      document.getElementById('count-'+status).textContent = items.length;
+      const col = document.getElementById('col-'+status);
+      if (items.length === 0) {
+        col.innerHTML = `<div class="empty-state" style="padding:24px 10px;">ไม่มีงาน</div>`;
+        return;
+      }
+      col.innerHTML = items.map(t => `
+        <div class="task-card ${t.status === 'done' ? 'done' : ''}" data-id="${t.id}">
+          <div class="task-title">${escapeHtml(t.title)}</div>
+          ${t.detail ? `<div class="text-soft" style="font-size:12px;">${escapeHtml(t.detail)}</div>` : ''}
+          <div class="task-meta">
+            <span class="task-due ${isOverdue(t.dueDate, t.status) ? 'overdue' : ''}">${t.dueDate ? fmtDate(t.dueDate) : 'ไม่มีกำหนด'}</span>
+            <span class="priority-dot ${t.priority || 'normal'}" title="ความสำคัญ: ${PRIORITY_LABEL[t.priority] || 'ปกติ'}"></span>
+          </div>
+        </div>
+      `).join('');
+    });
+
+    document.querySelectorAll('.task-card').forEach(card => {
+      card.addEventListener('click', () => openTaskModal(tasks.find(t => t.id === card.dataset.id)));
+    });
+  }
+
+  function openTaskModal(task) {
+    const isNew = !task;
+    task = task || { title: '', detail: '', dueDate: '', status: 'todo', priority: 'normal' };
+    openModal(`
+      <div class="modal">
+        <div class="modal-head"><h3>${isNew ? 'งานใหม่' : 'แก้ไขงาน'}</h3><button class="modal-close" onclick="closeModal()">×</button></div>
+        <div class="modal-body">
+          <div class="field"><label>ชื่องาน</label><input type="text" id="tTitle" value="${escapeHtml(task.title)}" required></div>
+          <div class="field"><label>รายละเอียด</label><textarea id="tDetail" rows="3">${escapeHtml(task.detail)}</textarea></div>
+          <div class="field-row">
+            <div class="field"><label>วันครบกำหนด</label><input type="date" id="tDue" value="${(task.dueDate||'').slice(0,10)}"></div>
+            <div class="field"><label>ความสำคัญ</label>
+              <select id="tPriority">
+                <option value="high" ${task.priority==='high'?'selected':''}>สูง</option>
+                <option value="normal" ${task.priority==='normal'?'selected':''}>ปกติ</option>
+                <option value="low" ${task.priority==='low'?'selected':''}>ต่ำ</option>
+              </select>
+            </div>
+          </div>
+          <div class="field"><label>สถานะ</label>
+            <select id="tStatus">
+              <option value="todo" ${task.status==='todo'?'selected':''}>ยังไม่เริ่ม</option>
+              <option value="doing" ${task.status==='doing'?'selected':''}>กำลังทำ</option>
+              <option value="done" ${task.status==='done'?'selected':''}>เสร็จแล้ว</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-foot">
+          ${isNew ? '<span></span>' : `<button class="btn-danger" id="tDelete">ลบงานนี้</button>`}
+          <div>
+            <button class="btn-ghost" onclick="closeModal()">ยกเลิก</button>
+            <button class="btn" id="tSave">บันทึก</button>
+          </div>
+        </div>
+      </div>
+    `);
+
+    document.getElementById('tSave').addEventListener('click', async (e) => {
+      const title = document.getElementById('tTitle').value.trim();
+      if (!title) { toast('กรุณากรอกชื่องาน'); return; }
+      const payload = {
+        userId: user.id,
+        title,
+        detail: document.getElementById('tDetail').value.trim(),
+        dueDate: document.getElementById('tDue').value,
+        status: document.getElementById('tStatus').value,
+        priority: document.getElementById('tPriority').value,
+      };
+      setLoading(e.target, true);
+      try {
+        if (isNew) await Api.call('taskCreate', payload);
+        else await Api.call('taskUpdate', { ...payload, id: task.id });
+        closeModal();
+        toast('บันทึกแล้ว');
+        await load();
+      } catch (err) { toast(err.message); setLoading(e.target, false); }
+    });
+
+    if (!isNew) {
+      document.getElementById('tDelete').addEventListener('click', async () => {
+        if (!confirm('ลบงานนี้หรือไม่?')) return;
+        try {
+          await Api.call('taskDelete', { id: task.id, userId: user.id });
+          closeModal();
+          toast('ลบแล้ว');
+          await load();
+        } catch (err) { toast(err.message); }
+      });
+    }
+  }
+
+  document.getElementById('newTaskBtn').addEventListener('click', () => openTaskModal(null));
+
+  load();
+</script>
+</body>
+</html>

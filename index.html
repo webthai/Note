@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Note — เข้าสู่ระบบ</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="auth-shell">
+  <div class="auth-card">
+    <div class="auth-brand">Note.</div>
+    <div class="auth-tag">Journal &amp; Task Ledger</div>
+
+    <div class="auth-toggle">
+      <button id="tabLogin" class="active">เข้าสู่ระบบ</button>
+      <button id="tabRegister">สมัครใช้งาน</button>
+    </div>
+
+    <div class="auth-error" id="authError"></div>
+
+    <form id="authForm">
+      <div class="field">
+        <label>ชื่อผู้ใช้</label>
+        <input type="text" id="username" autocomplete="username" required>
+      </div>
+      <div class="field">
+        <label>รหัสผ่าน</label>
+        <input type="password" id="password" autocomplete="current-password" required>
+      </div>
+      <button type="submit" class="btn btn-block" id="submitBtn">เข้าสู่ระบบ</button>
+    </form>
+
+    <div class="auth-hint" id="authHint">
+      ผู้ที่สมัครใช้งานเป็นคนแรกของระบบจะได้สิทธิ์ผู้ดูแล (Admin) โดยอัตโนมัติ
+    </div>
+  </div>
+</div>
+
+<script src="js/config.js"></script>
+<script src="js/api.js"></script>
+<script src="js/auth.js"></script>
+<script>
+  // Already logged in? go straight to dashboard.
+  if (Auth.getUser()) window.location.href = 'dashboard.html';
+
+  let mode = 'login';
+  const tabLogin = document.getElementById('tabLogin');
+  const tabRegister = document.getElementById('tabRegister');
+  const submitBtn = document.getElementById('submitBtn');
+  const authError = document.getElementById('authError');
+  const authHint = document.getElementById('authHint');
+  const form = document.getElementById('authForm');
+
+  function setMode(m) {
+    mode = m;
+    tabLogin.classList.toggle('active', m === 'login');
+    tabRegister.classList.toggle('active', m === 'register');
+    submitBtn.textContent = m === 'login' ? 'เข้าสู่ระบบ' : 'สร้างบัญชีใหม่';
+    authError.classList.remove('show');
+    authHint.style.display = m === 'register' ? 'block' : 'none';
+  }
+  tabLogin.addEventListener('click', () => setMode('login'));
+  tabRegister.addEventListener('click', () => setMode('register'));
+  setMode('login');
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    authError.classList.remove('show');
+    const username = document.getElementById('username').value.trim();
+    const password = document.getElementById('password').value;
+
+    setLoadingState(true);
+    try {
+      const action = mode === 'login' ? 'login' : 'register';
+      const data = await Api.call(action, { username, password });
+      Auth.setUser(data.user);
+      window.location.href = 'dashboard.html';
+    } catch (err) {
+      authError.textContent = err.message;
+      authError.classList.add('show');
+    } finally {
+      setLoadingState(false);
+    }
+  });
+
+  function setLoadingState(loading) {
+    submitBtn.disabled = loading;
+    submitBtn.textContent = loading ? 'กำลังดำเนินการ...' : (mode === 'login' ? 'เข้าสู่ระบบ' : 'สร้างบัญชีใหม่');
+  }
+</script>
+</body>
+</html>

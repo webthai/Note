@@ -46,12 +46,13 @@
       <div class="panel-head">
         <div class="panel-title">วันหยุด (ใช้ร่วมกันทุกคน)</div>
         <div class="head-actions">
-          <button class="btn-ghost btn-sm" id="syncBankHolidaysBtn">⇩ ซิงก์วันหยุดธนาคาร</button>
+          <input type="number" id="nagerYear" style="width:88px; border:1px solid var(--line-strong); padding:7px 9px; border-radius:var(--radius); font-family:var(--font-mono); font-size:13px;">
+          <button class="btn-ghost btn-sm" id="syncNagerBtn">⇩ ดึงวันหยุดจาก Nager.Date</button>
           <button class="btn btn-sm" id="addHolidayBtn">+ เพิ่มวันหยุด</button>
         </div>
       </div>
       <div class="panel-body">
-        <p class="text-soft" style="font-size:12px; margin:0 0 14px;">ไม่มี API ฟรีอย่างเป็นทางการสำหรับวันหยุดธนาคารไทย ปุ่มนี้จะเติมรายชื่อวันหยุดธนาคารที่ประกาศแล้วของปีปัจจุบันให้ (ข้ามวันที่มีอยู่แล้ว) ต้องอัปเดตโค้ดปีถัดไปเองทุกปี — ดูวิธีใน README</p>
+        <p class="text-soft" style="font-size:12px; margin:0 0 14px;">ดึงวันหยุดราชการ/วันหยุดสาธารณะของไทยจาก <a href="https://date.nager.at" target="_blank" rel="noopener">Nager.Date</a> ซึ่งเป็น API ฟรี ไม่ต้องสมัคร ใส่ปี (ค.ศ.) แล้วกดปุ่มได้เลย — ข้ามวันที่มีอยู่แล้วอัตโนมัติ กดซ้ำได้อย่างปลอดภัย วันหยุดธนาคารพิเศษเฉพาะบางวันที่ไม่ใช่วันหยุดราชการทั่วไป ให้เพิ่มเองด้วยปุ่ม "+ เพิ่มวันหยุด"</p>
         <div class="ledger-scroll">
         <table class="ledger">
           <thead><tr><th>วันที่</th><th>ชื่อวันหยุด</th><th></th></tr></thead>
@@ -178,11 +179,15 @@
 
   document.getElementById('addHolidayBtn').addEventListener('click', () => openHolidayModal(null));
 
-  document.getElementById('syncBankHolidaysBtn').addEventListener('click', async (e) => {
-    setLoading(e.target, true, 'กำลังซิงก์...');
+  document.getElementById('nagerYear').value = new Date().getFullYear();
+
+  document.getElementById('syncNagerBtn').addEventListener('click', async (e) => {
+    const year = parseInt(document.getElementById('nagerYear').value, 10);
+    if (!year) { toast('กรุณาใส่ปีให้ถูกต้อง'); return; }
+    setLoading(e.target, true, 'กำลังดึงข้อมูล...');
     try {
-      const data = await Api.call('seedBankHolidays', { userId: user.id });
-      toast(`เพิ่มวันหยุดใหม่ ${data.added} รายการ (ปี ${data.year})`);
+      const data = await Api.call('syncNagerHolidays', { userId: user.id, year });
+      toast(`เพิ่มวันหยุดใหม่ ${data.added} จาก ${data.total} รายการ (ปี ${year})`);
       loadHolidays();
     } catch (err) { toast(err.message); }
     setLoading(e.target, false);

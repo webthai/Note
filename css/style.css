@@ -247,7 +247,7 @@ button, input, textarea, select {
   text-align: right;
 }
 
-.head-actions { display: flex; align-items: center; gap: 10px; }
+.head-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 
 .refresh-btn {
   display: inline-flex; align-items: center; gap: 6px;
@@ -682,7 +682,8 @@ table.ledger tr:hover td { background: var(--paper-soft); }
   .stat-row { grid-template-columns: 1fr 1fr; }
   .stat-value { font-size: 26px; }
   .panel-body { padding: 14px; }
-  .panel-head { padding: 12px 14px; }
+  .panel-head { padding: 12px 14px; flex-wrap: wrap; gap: 10px; align-items: flex-start; }
+  .panel-head .head-actions { width: 100%; }
 
   .cal-grid { font-size: 11px; }
   .cal-cell { min-height: 52px; padding: 4px; }

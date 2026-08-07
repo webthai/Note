@@ -4,6 +4,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Note — แดชบอร์ด</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#111110">
+<link rel="icon" href="icons/favicon-32.png" sizes="32x32">
+<link rel="icon" href="icons/favicon-16.png" sizes="16x16">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,700;1,9..144,500&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap">
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -17,7 +25,10 @@
         <div class="page-eyebrow">ภาพรวม</div>
         <h1>แดชบอร์ด</h1>
       </div>
-      <div class="page-date mono" id="todayLabel"></div>
+      <div class="head-actions">
+        <button class="refresh-btn" id="refreshBtn"><span class="glyph">⟳</span> รีเฟรช</button>
+        <div class="page-date mono" id="todayLabel"></div>
+      </div>
     </div>
 
     <div class="stat-row" id="statRow"></div>
@@ -43,12 +54,14 @@
         <div class="panel-title" id="ledgerTitle">สมุดบันทึกเดือนนี้</div>
       </div>
       <div class="panel-body">
+        <div class="ledger-scroll">
         <table class="ledger" id="ledgerTable">
           <thead>
             <tr><th>วันที่</th><th>ประเภท</th><th>รายการ</th><th>สถานะ</th></tr>
           </thead>
           <tbody id="ledgerBody"></tbody>
         </table>
+        </div>
         <div id="ledgerEmpty" class="empty-state" style="display:none; margin-top:16px;">
           <div class="glyph">—</div>
           ยังไม่มีรายการในเดือนนี้
@@ -62,6 +75,8 @@
 <script src="js/api.js"></script>
 <script src="js/auth.js"></script>
 <script src="js/ui.js"></script>
+<script src="js/notifications.js"></script>
+<script src="js/pwa.js"></script>
 <script src="js/calendar-widget.js"></script>
 <script>
   const user = Auth.requireLogin();
@@ -76,15 +91,23 @@
   let selectedDate = fmtDateInput(new Date());
 
   async function load() {
+    const cacheKey = 'dashboard_' + user.id;
+    const cached = Api.getCached(cacheKey);
+    if (cached) {
+      state = cached;
+      renderStats(); renderCalendar(); renderAgenda(); renderLedger();
+    }
     try {
       const data = await Api.call('getDashboard', { userId: user.id });
       state = data;
+      Api.setCached(cacheKey, data);
       renderStats();
       renderCalendar();
       renderAgenda();
       renderLedger();
+      Notify.checkAndNotify(state);
     } catch (err) {
-      toast(err.message);
+      if (!cached) toast(err.message);
     }
   }
 
@@ -200,6 +223,7 @@
     `).join('');
   }
 
+  wireRefreshButton('refreshBtn', load);
   load();
 </script>
 </body>

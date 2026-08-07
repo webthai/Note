@@ -4,6 +4,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Note — ปฏิทิน</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#111110">
+<link rel="icon" href="icons/favicon-32.png" sizes="32x32">
+<link rel="icon" href="icons/favicon-16.png" sizes="16x16">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,700;1,9..144,500&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap">
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -17,10 +25,13 @@
         <div class="page-eyebrow">กำหนดการ</div>
         <h1>ปฏิทิน</h1>
       </div>
-      <button class="btn" id="addEventBtn">+ เพิ่มรายการ</button>
+      <div class="head-actions">
+        <button class="refresh-btn" id="refreshBtn"><span class="glyph">⟳</span> รีเฟรช</button>
+        <button class="btn" id="addEventBtn">+ เพิ่มรายการ</button>
+      </div>
     </div>
 
-    <div class="dash-grid" style="grid-template-columns: 1.6fr 1fr;">
+    <div class="dash-grid">
       <div class="panel">
         <div class="panel-body" id="calWrap"></div>
       </div>
@@ -38,6 +49,8 @@
 <script src="js/api.js"></script>
 <script src="js/auth.js"></script>
 <script src="js/ui.js"></script>
+<script src="js/notifications.js"></script>
+<script src="js/pwa.js"></script>
 <script src="js/calendar-widget.js"></script>
 <script>
   const user = Auth.requireLogin();
@@ -49,11 +62,15 @@
   let selectedDate = fmtDateInput(new Date());
 
   async function load() {
+    const cacheKey = 'dashboard_' + user.id;
+    const cached = Api.getCached(cacheKey);
+    if (cached) { state = cached; renderCalendar(); renderAgenda(); }
     try {
       state = await Api.call('getDashboard', { userId: user.id });
+      Api.setCached(cacheKey, state);
       renderCalendar();
       renderAgenda();
-    } catch (err) { toast(err.message); }
+    } catch (err) { if (!cached) toast(err.message); }
   }
 
   function renderCalendar() {
@@ -85,10 +102,10 @@
       wrap.innerHTML = `<div class="agenda-empty">ไม่มีรายการในวันนี้ — กด "เพิ่มรายการ" เพื่อสร้างใหม่</div>`;
       return;
     }
-    wrap.innerHTML = items.map(i => `
+    wrap.innerHTML = items.map((i, idx) => `
       <div class="agenda-item">
         <div class="agenda-kind">${i.kind}</div>
-        <div style="flex:1;">
+        <div style="flex:1; ${i.editable ? 'cursor:pointer;' : ''}" ${i.editable ? `onclick="editEvent('${i.id}')"` : ''}>
           <div class="agenda-title">${escapeHtml(i.title)}</div>
           ${i.sub ? `<div class="agenda-sub">${escapeHtml(i.sub)}</div>` : ''}
         </div>
@@ -106,27 +123,32 @@
     } catch (err) { toast(err.message); }
   }
 
-  document.getElementById('addEventBtn').addEventListener('click', () => {
+  function openEventModal(existing) {
+    const isNew = !existing;
+    const ev = existing || { title: '', date: selectedDate, type: 'personal', detail: '' };
     openModal(`
       <div class="modal">
-        <div class="modal-head"><h3>เพิ่มรายการในปฏิทิน</h3><button class="modal-close" onclick="closeModal()">×</button></div>
+        <div class="modal-head"><h3>${isNew ? 'เพิ่มรายการในปฏิทิน' : 'แก้ไขรายการ'}</h3><button class="modal-close" onclick="closeModal()">×</button></div>
         <div class="modal-body">
-          <div class="field"><label>ชื่อรายการ</label><input type="text" id="evTitle" required></div>
+          <div class="field"><label>ชื่อรายการ</label><input type="text" id="evTitle" value="${escapeHtml(ev.title)}" required></div>
           <div class="field-row">
-            <div class="field"><label>วันที่</label><input type="date" id="evDate" value="${selectedDate}" required></div>
+            <div class="field"><label>วันที่</label><input type="date" id="evDate" value="${(ev.date||'').slice(0,10)}" required></div>
             <div class="field"><label>ประเภท</label>
               <select id="evType">
-                <option value="personal">กิจกรรม</option>
-                <option value="reminder">เตือนความจำ</option>
-                <option value="holiday">วันหยุดส่วนตัว</option>
+                <option value="personal" ${ev.type==='personal'?'selected':''}>กิจกรรม</option>
+                <option value="reminder" ${ev.type==='reminder'?'selected':''}>เตือนความจำ</option>
+                <option value="holiday" ${ev.type==='holiday'?'selected':''}>วันหยุดส่วนตัว</option>
               </select>
             </div>
           </div>
-          <div class="field"><label>รายละเอียด (ถ้ามี)</label><textarea id="evDetail" rows="3"></textarea></div>
+          <div class="field"><label>รายละเอียด (ถ้ามี)</label><textarea id="evDetail" rows="3">${escapeHtml(ev.detail||'')}</textarea></div>
         </div>
         <div class="modal-foot">
-          <button class="btn-ghost" onclick="closeModal()">ยกเลิก</button>
-          <button class="btn" id="saveEventBtn">บันทึก</button>
+          ${isNew ? '<span></span>' : `<button class="btn-danger" id="evDeleteBtn">ลบ</button>`}
+          <div>
+            <button class="btn-ghost" onclick="closeModal()">ยกเลิก</button>
+            <button class="btn" id="saveEventBtn">บันทึก</button>
+          </div>
         </div>
       </div>
     `);
@@ -138,14 +160,34 @@
       if (!title || !date) { toast('กรุณากรอกชื่อและวันที่'); return; }
       setLoading(e.target, true);
       try {
-        await Api.call('eventCreate', { userId: user.id, title, date, type, detail });
+        if (isNew) await Api.call('eventCreate', { userId: user.id, title, date, type, detail });
+        else await Api.call('eventUpdate', { id: ev.id, userId: user.id, title, date, type, detail });
         closeModal();
-        toast('เพิ่มรายการแล้ว');
+        toast('บันทึกแล้ว');
         selectedDate = date;
         await load();
       } catch (err) { toast(err.message); setLoading(e.target, false); }
     });
-  });
+    if (!isNew) {
+      document.getElementById('evDeleteBtn').addEventListener('click', async () => {
+        if (!confirm('ลบรายการนี้หรือไม่?')) return;
+        try {
+          await Api.call('eventDelete', { id: ev.id, userId: user.id });
+          closeModal();
+          toast('ลบแล้ว');
+          await load();
+        } catch (err) { toast(err.message); }
+      });
+    }
+  }
+
+  function editEvent(id) {
+    const ev = state.events.find(e => e.id === id);
+    if (ev) openEventModal(ev);
+  }
+
+  document.getElementById('addEventBtn').addEventListener('click', () => openEventModal(null));
+  wireRefreshButton('refreshBtn', load);
 
   load();
 </script>

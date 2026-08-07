@@ -24,5 +24,21 @@ const Api = {
     const data = await res.json();
     if (!data.ok) throw new Error(data.error || 'เกิดข้อผิดพลาดที่ไม่ทราบสาเหตุ');
     return data;
+  },
+
+  // ---- Perceived-speed helpers ----
+  // Pages call getCached() to paint instantly from the last-known-good
+  // response while the real network call is still in flight, then
+  // setCached() once fresh data arrives. sessionStorage only (cleared
+  // when the tab closes) so nobody's data lingers on a shared device.
+  getCached(key) {
+    try {
+      const raw = sessionStorage.getItem('note_cache_' + key);
+      return raw ? JSON.parse(raw) : null;
+    } catch (e) { return null; }
+  },
+
+  setCached(key, value) {
+    try { sessionStorage.setItem('note_cache_' + key, JSON.stringify(value)); } catch (e) { /* storage full/unavailable — safe to ignore */ }
   }
 };

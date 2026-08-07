@@ -4,6 +4,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Note — ตั้งค่า</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#111110">
+<link rel="icon" href="icons/favicon-32.png" sizes="32x32">
+<link rel="icon" href="icons/favicon-16.png" sizes="16x16">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,700;1,9..144,500&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap">
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -17,6 +25,7 @@
         <div class="page-eyebrow">สำหรับผู้ดูแลระบบ</div>
         <h1>ตั้งค่า</h1>
       </div>
+      <button class="refresh-btn" id="refreshBtn"><span class="glyph">⟳</span> รีเฟรช</button>
     </div>
 
     <div class="panel mb-16">
@@ -24,23 +33,31 @@
         <div class="panel-title">ผู้ใช้งานทั้งหมด</div>
       </div>
       <div class="panel-body">
+        <div class="ledger-scroll">
         <table class="ledger">
           <thead><tr><th>ชื่อผู้ใช้</th><th>สิทธิ์</th><th>สมัครเมื่อ</th><th></th></tr></thead>
           <tbody id="usersBody"></tbody>
         </table>
+        </div>
       </div>
     </div>
 
     <div class="panel">
       <div class="panel-head">
         <div class="panel-title">วันหยุด (ใช้ร่วมกันทุกคน)</div>
-        <button class="btn btn-sm" id="addHolidayBtn">+ เพิ่มวันหยุด</button>
+        <div class="head-actions">
+          <button class="btn-ghost btn-sm" id="syncBankHolidaysBtn">⇩ ซิงก์วันหยุดธนาคาร</button>
+          <button class="btn btn-sm" id="addHolidayBtn">+ เพิ่มวันหยุด</button>
+        </div>
       </div>
       <div class="panel-body">
+        <p class="text-soft" style="font-size:12px; margin:0 0 14px;">ไม่มี API ฟรีอย่างเป็นทางการสำหรับวันหยุดธนาคารไทย ปุ่มนี้จะเติมรายชื่อวันหยุดธนาคารที่ประกาศแล้วของปีปัจจุบันให้ (ข้ามวันที่มีอยู่แล้ว) ต้องอัปเดตโค้ดปีถัดไปเองทุกปี — ดูวิธีใน README</p>
+        <div class="ledger-scroll">
         <table class="ledger">
           <thead><tr><th>วันที่</th><th>ชื่อวันหยุด</th><th></th></tr></thead>
           <tbody id="holidaysBody"></tbody>
         </table>
+        </div>
       </div>
     </div>
   </main>
@@ -50,9 +67,12 @@
 <script src="js/api.js"></script>
 <script src="js/auth.js"></script>
 <script src="js/ui.js"></script>
+<script src="js/notifications.js"></script>
+<script src="js/pwa.js"></script>
 <script>
   const user = Auth.requireAdmin();
   renderSidebar('settings');
+
 
   async function loadUsers() {
     try {
@@ -85,9 +105,12 @@
     catch (err) { toast(err.message); }
   }
 
+  let holidaysCache = [];
+
   async function loadHolidays() {
     try {
       const data = await Api.call('holidaysList', {});
+      holidaysCache = data.holidays;
       const tbody = document.getElementById('holidaysBody');
       if (data.holidays.length === 0) {
         tbody.innerHTML = `<tr><td colspan="3" class="text-soft">ยังไม่มีข้อมูลวันหยุด</td></tr>`;
@@ -98,29 +121,38 @@
         <tr>
           <td class="ledger-date">${fmtDate(h.date)}</td>
           <td>${escapeHtml(h.name)}</td>
-          <td style="text-align:right;"><button class="btn-danger btn-sm" onclick="removeHoliday('${h.date}')">ลบ</button></td>
+          <td style="text-align:right; white-space:nowrap;">
+            <button class="btn-ghost btn-sm" onclick="openHolidayModal('${h.id}')">แก้ไข</button>
+            <button class="btn-danger btn-sm" onclick="removeHoliday('${h.id}')">ลบ</button>
+          </td>
         </tr>
       `).join('');
     } catch (err) { toast(err.message); }
   }
 
-  async function removeHoliday(date) {
+  async function removeHoliday(id) {
     if (!confirm('ลบวันหยุดนี้หรือไม่?')) return;
-    try { await Api.call('holidayDelete', { userId: user.id, date }); toast('ลบแล้ว'); loadHolidays(); }
+    try { await Api.call('holidayDelete', { userId: user.id, id }); toast('ลบแล้ว'); loadHolidays(); }
     catch (err) { toast(err.message); }
   }
 
-  document.getElementById('addHolidayBtn').addEventListener('click', () => {
+  function openHolidayModal(id) {
+    const existing = id ? holidaysCache.find(x => x.id === id) : null;
+    const isNew = !existing;
+    const h = existing || { date: '', name: '' };
     openModal(`
       <div class="modal">
-        <div class="modal-head"><h3>เพิ่มวันหยุด</h3><button class="modal-close" onclick="closeModal()">×</button></div>
+        <div class="modal-head"><h3>${isNew ? 'เพิ่มวันหยุด' : 'แก้ไขวันหยุด'}</h3><button class="modal-close" onclick="closeModal()">×</button></div>
         <div class="modal-body">
-          <div class="field"><label>วันที่</label><input type="date" id="hDate"></div>
-          <div class="field"><label>ชื่อวันหยุด</label><input type="text" id="hName" placeholder="เช่น วันสงกรานต์"></div>
+          <div class="field"><label>วันที่</label><input type="date" id="hDate" value="${(h.date||'').slice(0,10)}"></div>
+          <div class="field"><label>ชื่อวันหยุด</label><input type="text" id="hName" value="${escapeHtml(h.name||'')}" placeholder="เช่น วันสงกรานต์"></div>
         </div>
         <div class="modal-foot">
-          <button class="btn-ghost" onclick="closeModal()">ยกเลิก</button>
-          <button class="btn" id="hSave">บันทึก</button>
+          ${isNew ? '<span></span>' : `<button class="btn-danger" id="hDeleteBtn">ลบ</button>`}
+          <div>
+            <button class="btn-ghost" onclick="closeModal()">ยกเลิก</button>
+            <button class="btn" id="hSave">บันทึก</button>
+          </div>
         </div>
       </div>
     `);
@@ -130,11 +162,33 @@
       if (!date || !name) { toast('กรุณากรอกให้ครบ'); return; }
       setLoading(e.target, true);
       try {
-        await Api.call('holidayCreate', { userId: user.id, date, name });
-        closeModal(); toast('เพิ่มแล้ว'); loadHolidays();
+        if (isNew) await Api.call('holidayCreate', { userId: user.id, date, name });
+        else await Api.call('holidayUpdate', { userId: user.id, id: h.id, date, name });
+        closeModal(); toast('บันทึกแล้ว'); loadHolidays();
       } catch (err) { toast(err.message); setLoading(e.target, false); }
     });
+    if (!isNew) {
+      document.getElementById('hDeleteBtn').addEventListener('click', async () => {
+        if (!confirm('ลบวันหยุดนี้หรือไม่?')) return;
+        try { await Api.call('holidayDelete', { userId: user.id, id: h.id }); closeModal(); toast('ลบแล้ว'); loadHolidays(); }
+        catch (err) { toast(err.message); }
+      });
+    }
+  }
+
+  document.getElementById('addHolidayBtn').addEventListener('click', () => openHolidayModal(null));
+
+  document.getElementById('syncBankHolidaysBtn').addEventListener('click', async (e) => {
+    setLoading(e.target, true, 'กำลังซิงก์...');
+    try {
+      const data = await Api.call('seedBankHolidays', { userId: user.id });
+      toast(`เพิ่มวันหยุดใหม่ ${data.added} รายการ (ปี ${data.year})`);
+      loadHolidays();
+    } catch (err) { toast(err.message); }
+    setLoading(e.target, false);
   });
+
+  wireRefreshButton('refreshBtn', async () => { await loadUsers(); await loadHolidays(); });
 
   loadUsers();
   loadHolidays();

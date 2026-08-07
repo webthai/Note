@@ -8,7 +8,10 @@
             never by hue.
    ========================================================= */
 
-@import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,700;1,9..144,500&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
+/* Fonts are loaded via <link rel="preconnect"> + <link rel="stylesheet">
+   in each page's <head> instead of @import — @import blocks CSS parsing
+   until it resolves, which visibly delays first paint. See the head of
+   any .html file for the actual font <link> tags. */
 
 :root {
   --ink: #111110;
@@ -166,6 +169,52 @@ button, input, textarea, select {
 }
 .logout-btn:hover { background: rgba(255,255,255,0.08); color: var(--paper); }
 
+.side-util-btn {
+  width: 100%;
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.55);
+  padding: 7px 10px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-size: 11.5px;
+  letter-spacing: 0.02em;
+  margin-bottom: 8px;
+  text-align: left;
+  display: none;
+}
+.side-util-btn:hover { color: var(--paper); border-color: rgba(255,255,255,0.4); }
+.side-util-btn.is-on { color: var(--paper); border-color: rgba(255,255,255,0.5); }
+#notifyToggleBtn { display: block; }
+#installAppBtn.show { display: block; }
+
+/* ---------- Mobile top bar + off-canvas drawer ---------- */
+
+.mobile-topbar {
+  display: none;
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  align-items: center;
+  gap: 12px;
+  padding: 0 16px;
+  height: 52px;
+  background: var(--ink);
+  color: var(--paper);
+}
+.mobile-brand { font-family: var(--font-display); font-weight: 700; font-size: 18px; }
+.mobile-brand .dot { font-family: var(--font-body); }
+.hamburger-btn {
+  background: transparent; border: 1px solid rgba(255,255,255,0.3); color: var(--paper);
+  width: 34px; height: 34px; border-radius: var(--radius); font-size: 16px; cursor: pointer;
+}
+
+.sidebar-backdrop {
+  display: none;
+  position: fixed; inset: 0; background: rgba(17,17,16,0.55); z-index: 45;
+}
+.sidebar-backdrop.show { display: block; }
+
 .main {
   padding: 32px 40px 60px;
   max-width: 1180px;
@@ -197,6 +246,17 @@ button, input, textarea, select {
   color: var(--ink-soft);
   text-align: right;
 }
+
+.head-actions { display: flex; align-items: center; gap: 10px; }
+
+.refresh-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: transparent; border: 1px solid var(--line-strong); color: var(--ink);
+  padding: 8px 13px; font-size: 13px; font-weight: 600; border-radius: var(--radius); cursor: pointer;
+}
+.refresh-btn:hover { border-color: var(--ink); }
+.refresh-btn .glyph { display: inline-block; transition: transform .5s ease; }
+.refresh-btn.spinning .glyph { transform: rotate(360deg); }
 
 /* ---------- Buttons ---------- */
 
@@ -509,7 +569,7 @@ table.ledger tr:hover td { background: var(--paper-soft); }
 
 .modal-backdrop {
   position: fixed; inset: 0; background: rgba(17,17,16,0.5);
-  display: flex; align-items: center; justify-content: center; z-index: 50; padding: 20px;
+  display: flex; align-items: center; justify-content: center; z-index: 60; padding: 20px;
 }
 .modal {
   background: var(--paper); width: 100%; max-width: 480px;
@@ -572,11 +632,85 @@ table.ledger tr:hover td { background: var(--paper-soft); }
 .mt-16 { margin-top: 16px; }
 .mb-16 { margin-bottom: 16px; }
 
-@media (max-width: 980px) {
-  .app-shell { grid-template-columns: 1fr; }
-  .sidebar { position: static; height: auto; }
+/* ============ Responsive ============ */
+
+/* Tablet: stack the two-column panels, keep the sidebar as a fixed column still */
+@media (max-width: 1080px) {
   .dash-grid { grid-template-columns: 1fr; }
-  .notes-layout { grid-template-columns: 1fr; }
-  .kanban { grid-template-columns: 1fr; }
+  .notes-layout { grid-template-columns: 260px 1fr; }
+}
+
+/* Small tablet / large phone: sidebar becomes an off-canvas drawer, mobile top bar appears */
+@media (max-width: 860px) {
+  .mobile-topbar { display: flex; }
+
+  .app-shell { grid-template-columns: 1fr; }
+
+  .sidebar {
+    position: fixed;
+    top: 0; left: 0; bottom: 0;
+    width: 250px;
+    height: 100vh;
+    transform: translateX(-100%);
+    transition: transform .22s ease;
+    z-index: 50;
+  }
+  .sidebar.open { transform: translateX(0); }
+
+  .main { padding: 20px 18px 50px; max-width: 100%; }
+
+  .page-head { flex-direction: column; align-items: flex-start; gap: 6px; }
+  .page-date { text-align: left; }
+
   .stat-row { grid-template-columns: repeat(2, 1fr); }
+
+  .notes-layout { grid-template-columns: 1fr; }
+  .notes-list { max-height: 220px; }
+
+  .kanban { grid-template-columns: 1fr; }
+
+  table.ledger { display: block; }
+  .ledger-scroll { overflow-x: auto; }
+
+  .cal-cell { min-height: 64px; }
+}
+
+/* Phone */
+@media (max-width: 560px) {
+  .main { padding: 16px 14px 50px; }
+  .page-head h1 { font-size: 24px; }
+  .stat-row { grid-template-columns: 1fr 1fr; }
+  .stat-value { font-size: 26px; }
+  .panel-body { padding: 14px; }
+  .panel-head { padding: 12px 14px; }
+
+  .cal-grid { font-size: 11px; }
+  .cal-cell { min-height: 52px; padding: 4px; }
+  .cal-daynum { font-size: 10.5px; }
+  .cal-dow { font-size: 9px; padding: 6px 0; }
+  .mark { width: 6px; height: 6px; }
+  .cal-legend { gap: 10px; }
+  .cal-legend-item { font-size: 10.5px; }
+  .cal-month-label { min-width: 96px; font-size: 12px; }
+
+  .field-row { grid-template-columns: 1fr; gap: 0; }
+  .modal { max-width: 100%; }
+  .modal-backdrop { padding: 0; align-items: flex-end; }
+  .modal { width: 100%; max-height: 92vh; }
+  .modal-foot { flex-direction: column-reverse; }
+  .modal-foot > * { width: 100%; }
+  .modal-foot div { display: flex; flex-direction: column; gap: 8px; width: 100%; }
+
+  .note-editor { padding: 16px; min-height: 60vh; }
+  .note-editor input[type=text] { font-size: 19px; }
+  .note-editor textarea { min-height: 260px; }
+
+  .auth-card { padding: 30px 22px; box-shadow: 4px 4px 0 var(--ink); }
+
+  .toast { left: 14px; right: 14px; bottom: 14px; text-align: center; }
+}
+
+/* Respect users who've asked the OS/browser to reduce motion */
+@media (prefers-reduced-motion: reduce) {
+  .sidebar, .cal-cell, .toast, .logout-btn, .side-util-btn { transition: none !important; }
 }

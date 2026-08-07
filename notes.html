@@ -4,6 +4,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Note — บันทึก</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#111110">
+<link rel="icon" href="icons/favicon-32.png" sizes="32x32">
+<link rel="icon" href="icons/favicon-16.png" sizes="16x16">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,700;1,9..144,500&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap">
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -17,7 +25,10 @@
         <div class="page-eyebrow">จดไว้กันลืม</div>
         <h1>บันทึก</h1>
       </div>
-      <button class="btn" id="newNoteBtn">+ บันทึกใหม่</button>
+      <div class="head-actions">
+        <button class="refresh-btn" id="refreshBtn"><span class="glyph">⟳</span> รีเฟรช</button>
+        <button class="btn" id="newNoteBtn">+ บันทึกใหม่</button>
+      </div>
     </div>
 
     <div class="notes-layout">
@@ -36,6 +47,8 @@
 <script src="js/api.js"></script>
 <script src="js/auth.js"></script>
 <script src="js/ui.js"></script>
+<script src="js/notifications.js"></script>
+<script src="js/pwa.js"></script>
 <script>
   const user = Auth.requireLogin();
   renderSidebar('notes');
@@ -45,12 +58,17 @@
   let dirty = false;
 
   async function load() {
+    const cacheKey = 'notes_' + user.id;
+    const cached = Api.getCached(cacheKey);
+    if (cached && notes.length === 0) { notes = cached; renderList(); }
     try {
       const data = await Api.call('notesList', { userId: user.id });
       notes = data.notes;
+      Api.setCached(cacheKey, notes);
       renderList();
       if (activeId && !notes.find(n => n.id === activeId)) { activeId = null; renderEditor(); }
-    } catch (err) { toast(err.message); }
+      else if (activeId && !dirty) { renderEditor(); }
+    } catch (err) { if (!cached) toast(err.message); }
   }
 
   function renderList() {
@@ -139,6 +157,11 @@
 
   window.addEventListener('beforeunload', (e) => { if (dirty) { e.preventDefault(); e.returnValue = ''; } });
 
+  wireRefreshButton('refreshBtn', async () => {
+    if (dirty && !confirm('มีการแก้ไขที่ยังไม่บันทึก รีเฟรชแล้วจะหายไป ต้องการดำเนินการต่อหรือไม่?')) return;
+    dirty = false;
+    await load();
+  });
   load();
 </script>
 </body>

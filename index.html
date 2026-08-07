@@ -4,6 +4,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Note — เข้าสู่ระบบ</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#111110">
+<link rel="icon" href="icons/favicon-32.png" sizes="32x32">
+<link rel="icon" href="icons/favicon-16.png" sizes="16x16">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,700;1,9..144,500&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap">
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -29,6 +37,10 @@
         <label>รหัสผ่าน</label>
         <input type="password" id="password" autocomplete="current-password" required>
       </div>
+      <div class="field" id="emailField" style="display:none;">
+        <label>อีเมล (ไม่บังคับ — ใช้ส่งสรุปงานประจำวัน)</label>
+        <input type="email" id="email" autocomplete="email">
+      </div>
       <button type="submit" class="btn btn-block" id="submitBtn">เข้าสู่ระบบ</button>
     </form>
 
@@ -41,6 +53,7 @@
 <script src="js/config.js"></script>
 <script src="js/api.js"></script>
 <script src="js/auth.js"></script>
+<script src="js/pwa.js"></script>
 <script>
   // Already logged in? go straight to dashboard.
   if (Auth.getUser()) window.location.href = 'dashboard.html';
@@ -60,6 +73,7 @@
     submitBtn.textContent = m === 'login' ? 'เข้าสู่ระบบ' : 'สร้างบัญชีใหม่';
     authError.classList.remove('show');
     authHint.style.display = m === 'register' ? 'block' : 'none';
+    document.getElementById('emailField').style.display = m === 'register' ? 'block' : 'none';
   }
   tabLogin.addEventListener('click', () => setMode('login'));
   tabRegister.addEventListener('click', () => setMode('register'));
@@ -70,11 +84,12 @@
     authError.classList.remove('show');
     const username = document.getElementById('username').value.trim();
     const password = document.getElementById('password').value;
+    const email = mode === 'register' ? document.getElementById('email').value.trim() : undefined;
 
     setLoadingState(true);
     try {
       const action = mode === 'login' ? 'login' : 'register';
-      const data = await Api.call(action, { username, password });
+      const data = await Api.call(action, { username, password, email });
       Auth.setUser(data.user);
       window.location.href = 'dashboard.html';
     } catch (err) {

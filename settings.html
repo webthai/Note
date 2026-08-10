@@ -46,17 +46,33 @@
       <div class="panel-head">
         <div class="panel-title">วันหยุด (ใช้ร่วมกันทุกคน)</div>
         <div class="head-actions">
-          <input type="number" id="nagerYear" style="width:88px; border:1px solid var(--line-strong); padding:7px 9px; border-radius:var(--radius); font-family:var(--font-mono); font-size:13px;">
-          <button class="btn-ghost btn-sm" id="syncNagerBtn">⇩ ดึงวันหยุดจาก Nager.Date</button>
+          <input type="number" id="thaiYear" style="width:88px; border:1px solid var(--line-strong); padding:7px 9px; border-radius:var(--radius); font-family:var(--font-mono); font-size:13px;">
+          <button class="btn-ghost btn-sm" id="syncThaiBtn">⇩ ซิงก์วันหยุดปีนี้</button>
           <button class="btn btn-sm" id="addHolidayBtn">+ เพิ่มวันหยุด</button>
         </div>
       </div>
       <div class="panel-body">
-        <p class="text-soft" style="font-size:12px; margin:0 0 14px;">ดึงวันหยุดราชการ/วันหยุดสาธารณะของไทยจาก <a href="https://date.nager.at" target="_blank" rel="noopener">Nager.Date</a> ซึ่งเป็น API ฟรี ไม่ต้องสมัคร ใส่ปี (ค.ศ.) แล้วกดปุ่มได้เลย — ข้ามวันที่มีอยู่แล้วอัตโนมัติ กดซ้ำได้อย่างปลอดภัย วันหยุดธนาคารพิเศษเฉพาะบางวันที่ไม่ใช่วันหยุดราชการทั่วไป ให้เพิ่มเองด้วยปุ่ม "+ เพิ่มวันหยุด"</p>
+        <p class="text-soft" style="font-size:12px; margin:0 0 14px;">ใส่ปี (ค.ศ. 2020-2040) แล้วกดซิงก์ — ปีที่มีประกาศทางการครบแล้ว (ตอนนี้คือ 2026) จะได้วันหยุดครบทุกประเภท ส่วนปีอื่นๆ ระบบจะสร้างเฉพาะ<b>วันหยุดที่วันที่คงที่ทุกปี</b>ให้อัตโนมัติ (รวมกฎวันหยุดชดเชยเสาร์-อาทิตย์) ส่วนวันหยุดตามปฏิทินจันทรคติ (มาฆบูชา วิสาขบูชา อาสาฬหบูชา เข้าพรรษา) ต้องเพิ่มเองทีหลังเมื่อทางการประกาศแล้ว เพราะคำนวณล่วงหน้าไม่ได้จริง — ข้ามวันที่มีอยู่แล้วอัตโนมัติ กดซ้ำได้อย่างปลอดภัย</p>
         <div class="ledger-scroll">
         <table class="ledger">
           <thead><tr><th>วันที่</th><th>ชื่อวันหยุด</th><th></th></tr></thead>
           <tbody id="holidaysBody"></tbody>
+        </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel mt-16">
+      <div class="panel-head">
+        <div class="panel-title">แม่แบบวันหยุดประจำปี (วันที่คงที่ทุกปี)</div>
+        <button class="btn btn-sm" id="addTemplateBtn">+ เพิ่มแม่แบบ</button>
+      </div>
+      <div class="panel-body">
+        <p class="text-soft" style="font-size:12px; margin:0 0 14px;">รายการนี้คือวันหยุดที่ตกวันเดือนเดิมทุกปี (เช่น สงกรานต์ 13-15 เม.ย.) ใช้เป็นต้นแบบตอนกด "ซิงก์วันหยุดปีนี้" ด้านบน แก้ไข/เพิ่ม/ลบได้จากหน้านี้เลย ไม่ต้องแก้โค้ด — การแก้จะมีผลกับการซิงก์ปีถัดๆ ไปเท่านั้น ไม่กระทบวันหยุดที่เพิ่มไปแล้วในตารางด้านบน</p>
+        <div class="ledger-scroll">
+        <table class="ledger">
+          <thead><tr><th>เดือน</th><th>วันที่</th><th>ชื่อวันหยุด</th><th></th></tr></thead>
+          <tbody id="templatesBody"></tbody>
         </table>
         </div>
       </div>
@@ -179,24 +195,106 @@
 
   document.getElementById('addHolidayBtn').addEventListener('click', () => openHolidayModal(null));
 
-  document.getElementById('nagerYear').value = new Date().getFullYear();
+  document.getElementById('thaiYear').value = new Date().getFullYear();
 
-  document.getElementById('syncNagerBtn').addEventListener('click', async (e) => {
-    const year = parseInt(document.getElementById('nagerYear').value, 10);
+  document.getElementById('syncThaiBtn').addEventListener('click', async (e) => {
+    const year = parseInt(document.getElementById('thaiYear').value, 10);
     if (!year) { toast('กรุณาใส่ปีให้ถูกต้อง'); return; }
-    setLoading(e.target, true, 'กำลังดึงข้อมูล...');
+    setLoading(e.target, true, 'กำลังซิงก์...');
     try {
-      const data = await Api.call('syncNagerHolidays', { userId: user.id, year });
-      toast(`เพิ่มวันหยุดใหม่ ${data.added} จาก ${data.total} รายการ (ปี ${year})`);
+      const data = await Api.call('seedThaiHolidays', { userId: user.id, year });
+      if (data.source === 'official') {
+        toast(`เพิ่มวันหยุดใหม่ ${data.added} รายการ (ปี ${data.year} — ข้อมูลทางการครบถ้วน)`);
+      } else {
+        toast(`เพิ่มวันหยุดที่วันที่คงที่ ${data.added} รายการ — ยังขาดวันหยุดจันทรคติอีกประมาณ ${data.lunarMissing} วัน ต้องเพิ่มเองภายหลัง`);
+      }
       loadHolidays();
     } catch (err) { toast(err.message); }
     setLoading(e.target, false);
   });
 
-  wireRefreshButton('refreshBtn', async () => { await loadUsers(); await loadHolidays(); });
+  let templatesCache = [];
+  const MONTH_NAMES_TH = ['','ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+
+  async function loadTemplates() {
+    try {
+      const data = await Api.call('holidayTemplatesList', { userId: user.id });
+      templatesCache = data.templates;
+      const tbody = document.getElementById('templatesBody');
+      if (templatesCache.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="4" class="text-soft">ยังไม่มีแม่แบบ</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = templatesCache.map(t => `
+        <tr>
+          <td class="ledger-date">${MONTH_NAMES_TH[Number(t.month)]}</td>
+          <td class="ledger-date">${t.day}</td>
+          <td>${escapeHtml(t.name)}</td>
+          <td style="text-align:right; white-space:nowrap;">
+            <button class="btn-ghost btn-sm" onclick="openTemplateModal('${t.id}')">แก้ไข</button>
+            <button class="btn-danger btn-sm" onclick="removeTemplate('${t.id}')">ลบ</button>
+          </td>
+        </tr>
+      `).join('');
+    } catch (err) { toast(err.message); }
+  }
+
+  async function removeTemplate(id) {
+    if (!confirm('ลบแม่แบบวันหยุดนี้หรือไม่? (จะมีผลกับการซิงก์ครั้งถัดไปเท่านั้น)')) return;
+    try { await Api.call('holidayTemplateDelete', { userId: user.id, id }); toast('ลบแล้ว'); loadTemplates(); }
+    catch (err) { toast(err.message); }
+  }
+
+  function openTemplateModal(id) {
+    const existing = id ? templatesCache.find(x => x.id === id) : null;
+    const isNew = !existing;
+    const t = existing || { month: '', day: '', name: '' };
+    openModal(`
+      <div class="modal">
+        <div class="modal-head"><h3>${isNew ? 'เพิ่มแม่แบบวันหยุด' : 'แก้ไขแม่แบบวันหยุด'}</h3><button class="modal-close" onclick="closeModal()">×</button></div>
+        <div class="modal-body">
+          <div class="field-row">
+            <div class="field"><label>เดือน (1-12)</label><input type="number" id="tMonth" min="1" max="12" value="${t.month}"></div>
+            <div class="field"><label>วันที่ (1-31)</label><input type="number" id="tDay" min="1" max="31" value="${t.day}"></div>
+          </div>
+          <div class="field"><label>ชื่อวันหยุด</label><input type="text" id="tName" value="${escapeHtml(t.name||'')}" placeholder="เช่น วันสงกรานต์"></div>
+        </div>
+        <div class="modal-foot">
+          ${isNew ? '<span></span>' : `<button class="btn-danger" id="tDeleteBtn">ลบ</button>`}
+          <div>
+            <button class="btn-ghost" onclick="closeModal()">ยกเลิก</button>
+            <button class="btn" id="tSaveBtn">บันทึก</button>
+          </div>
+        </div>
+      </div>
+    `);
+    document.getElementById('tSaveBtn').addEventListener('click', async (e) => {
+      const month = document.getElementById('tMonth').value;
+      const day = document.getElementById('tDay').value;
+      const name = document.getElementById('tName').value.trim();
+      setLoading(e.target, true);
+      try {
+        if (isNew) await Api.call('holidayTemplateCreate', { userId: user.id, month, day, name });
+        else await Api.call('holidayTemplateUpdate', { userId: user.id, id: t.id, month, day, name });
+        closeModal(); toast('บันทึกแล้ว'); loadTemplates();
+      } catch (err) { toast(err.message); setLoading(e.target, false); }
+    });
+    if (!isNew) {
+      document.getElementById('tDeleteBtn').addEventListener('click', async () => {
+        if (!confirm('ลบแม่แบบวันหยุดนี้หรือไม่?')) return;
+        try { await Api.call('holidayTemplateDelete', { userId: user.id, id: t.id }); closeModal(); toast('ลบแล้ว'); loadTemplates(); }
+        catch (err) { toast(err.message); }
+      });
+    }
+  }
+
+  document.getElementById('addTemplateBtn').addEventListener('click', () => openTemplateModal(null));
+
+  wireRefreshButton('refreshBtn', async () => { await loadUsers(); await loadHolidays(); await loadTemplates(); });
 
   loadUsers();
   loadHolidays();
+  loadTemplates();
 </script>
 </body>
 </html>

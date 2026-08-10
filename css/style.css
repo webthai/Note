@@ -27,6 +27,15 @@
   --font-display: 'Fraunces', serif;
   --font-body: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
+
+  /* Accent colors reserved specifically for calendar entry types
+     (task/note/holiday/reminder) — everything else in the app stays
+     strictly monochrome; this is the one deliberate exception so the
+     four kinds are easy to tell apart at a glance. */
+  --c-task: #111110;
+  --c-note: #2f5fd1;
+  --c-holiday: #c0392b;
+  --c-reminder: #b8860b;
 }
 
 * { box-sizing: border-box; }
@@ -399,6 +408,9 @@ button, input, textarea, select {
 .cal-cell.today { background: var(--paper-stamp); }
 .cal-cell.today .cal-daynum { font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
 .cal-cell.selected { outline: 2px solid var(--ink); outline-offset: -2px; }
+.cal-cell.has-holiday { background: rgba(192,57,43,0.07); }
+.cal-cell.has-holiday.today { background: rgba(192,57,43,0.14); }
+.cal-cell.has-holiday .cal-daynum { color: var(--c-holiday); font-weight: 700; }
 
 .cal-daynum {
   font-family: var(--font-mono);
@@ -406,17 +418,17 @@ button, input, textarea, select {
   color: var(--ink-mid);
 }
 
-.cal-marks { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 6px; }
+.cal-marks { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
 
 .mark {
-  width: 8px; height: 8px;
-  border: 1px solid var(--ink);
+  width: 10px; height: 10px;
+  border: 1.5px solid var(--ink);
   flex-shrink: 0;
 }
-.mark.task { background: var(--ink); }
-.mark.note { border-radius: 50%; background: transparent; }
-.mark.holiday { background: transparent; transform: rotate(45deg); }
-.mark.reminder { background: transparent; border-style: dashed; }
+.mark.task { background: var(--c-task); border-color: var(--c-task); }
+.mark.note { border-radius: 50%; background: var(--c-note); border-color: var(--c-note); }
+.mark.holiday { background: var(--c-holiday); border-color: var(--c-holiday); transform: rotate(45deg); }
+.mark.reminder { background: transparent; border-color: var(--c-reminder); border-style: dashed; border-width: 2px; }
 
 .cal-legend { display: flex; gap: 16px; margin-top: 14px; flex-wrap: wrap; }
 .cal-legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-mid); }
@@ -444,11 +456,17 @@ button, input, textarea, select {
   font-size: 9.5px;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  border: 1px solid var(--ink);
+  border: 1.5px solid var(--ink);
   padding: 2px 6px;
   height: fit-content;
   white-space: nowrap;
+  font-weight: 600;
 }
+.agenda-kind.kind-task { border-color: var(--c-task); color: var(--c-task); }
+.agenda-kind.kind-note { border-color: var(--c-note); color: var(--c-note); background: rgba(47,95,209,0.08); }
+.agenda-kind.kind-holiday { border-color: var(--c-holiday); color: var(--c-holiday); background: rgba(192,57,43,0.08); }
+.agenda-kind.kind-reminder { border-color: var(--c-reminder); color: var(--c-reminder); background: rgba(184,134,11,0.08); }
+.agenda-kind.kind-personal { border-color: var(--ink-mid); color: var(--ink-mid); }
 
 .agenda-title { font-weight: 600; font-size: 13.5px; }
 .agenda-sub { font-size: 12px; color: var(--ink-soft); margin-top: 2px; }
@@ -488,6 +506,11 @@ table.ledger tr:hover td { background: var(--paper-soft); }
   padding: 2px 7px;
 }
 .tag.outline { border-color: var(--line-strong); color: var(--ink-mid); }
+.tag.kind-task { border-color: var(--c-task); color: var(--c-task); }
+.tag.kind-note { border-color: var(--c-note); color: var(--c-note); background: rgba(47,95,209,0.08); }
+.tag.kind-holiday { border-color: var(--c-holiday); color: var(--c-holiday); background: rgba(192,57,43,0.08); }
+.tag.kind-reminder { border-color: var(--c-reminder); color: var(--c-reminder); background: rgba(184,134,11,0.08); }
+.tag.kind-personal { border-color: var(--ink-mid); color: var(--ink-mid); }
 
 /* ---------- Stamp (done marker) ---------- */
 

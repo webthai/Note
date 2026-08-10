@@ -33,6 +33,7 @@ function renderMonthCalendar(container, { year, month, entriesByDate, selectedDa
     if (c.other) classes.push('other-month');
     if (isSameDay(c.date, today)) classes.push('today');
     if (selectedDate && dateStr === selectedDate) classes.push('selected');
+    if (entries.some(e => e.type === 'holiday')) classes.push('has-holiday');
 
     const marks = entries.slice(0, 6).map(e => `<span class="mark ${e.type}" title="${escapeHtml(e.title)}"></span>`).join('');
 

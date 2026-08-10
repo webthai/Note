@@ -88,9 +88,9 @@
 
   function entriesForDate(dateStr) {
     const list = [];
-    state.tasks.forEach(t => { if ((t.dueDate||'').slice(0,10) === dateStr) list.push({ kind: 'งาน', title: t.title, id: t.id, sub: t.status === 'done' ? 'เสร็จแล้ว' : (t.priority||'ปกติ') }); });
-    state.events.forEach(e => { if ((e.date||'').slice(0,10) === dateStr) list.push({ kind: e.type === 'holiday' ? 'วันหยุด' : (e.type === 'reminder' ? 'เตือนความจำ' : 'กิจกรรม'), title: e.title, id: e.id, sub: e.detail||'', editable: true, raw: e }); });
-    state.holidays.forEach(h => { if ((h.date||'').slice(0,10) === dateStr) list.push({ kind: 'วันหยุด', title: h.name, sub: '' }); });
+    state.tasks.forEach(t => { if ((t.dueDate||'').slice(0,10) === dateStr) list.push({ kind: 'งาน', type: 'task', title: t.title, id: t.id, sub: t.status === 'done' ? 'เสร็จแล้ว' : (t.priority||'ปกติ') }); });
+    state.events.forEach(e => { if ((e.date||'').slice(0,10) === dateStr) list.push({ kind: e.type === 'holiday' ? 'วันหยุด' : (e.type === 'reminder' ? 'เตือนความจำ' : 'กิจกรรม'), type: e.type === 'holiday' ? 'holiday' : (e.type === 'reminder' ? 'reminder' : 'personal'), title: e.title, id: e.id, sub: e.detail||'', editable: true, raw: e }); });
+    state.holidays.forEach(h => { if ((h.date||'').slice(0,10) === dateStr) list.push({ kind: 'วันหยุด', type: 'holiday', title: h.name, sub: '' }); });
     return list;
   }
 
@@ -104,7 +104,7 @@
     }
     wrap.innerHTML = items.map((i, idx) => `
       <div class="agenda-item">
-        <div class="agenda-kind">${i.kind}</div>
+        <div class="agenda-kind kind-${i.type}">${i.kind}</div>
         <div style="flex:1; ${i.editable ? 'cursor:pointer;' : ''}" ${i.editable ? `onclick="editEvent('${i.id}')"` : ''}>
           <div class="agenda-title">${escapeHtml(i.title)}</div>
           ${i.sub ? `<div class="agenda-sub">${escapeHtml(i.sub)}</div>` : ''}

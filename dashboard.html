@@ -154,9 +154,9 @@
 
   function entriesForDate(dateStr) {
     const list = [];
-    state.tasks.forEach(t => { if ((t.dueDate || '').slice(0,10) === dateStr) list.push({ kind: 'งาน', title: t.title, sub: t.status === 'done' ? 'เสร็จแล้ว' : (t.priority || 'ปกติ') }); });
-    state.events.forEach(e => { if ((e.date || '').slice(0,10) === dateStr) list.push({ kind: e.type === 'holiday' ? 'วันหยุด' : (e.type === 'reminder' ? 'เตือนความจำ' : 'กิจกรรม'), title: e.title, sub: e.detail || '' }); });
-    state.holidays.forEach(h => { if ((h.date || '').slice(0,10) === dateStr) list.push({ kind: 'วันหยุด', title: h.name, sub: '' }); });
+    state.tasks.forEach(t => { if ((t.dueDate || '').slice(0,10) === dateStr) list.push({ kind: 'งาน', type: 'task', title: t.title, sub: t.status === 'done' ? 'เสร็จแล้ว' : (t.priority || 'ปกติ') }); });
+    state.events.forEach(e => { if ((e.date || '').slice(0,10) === dateStr) list.push({ kind: e.type === 'holiday' ? 'วันหยุด' : (e.type === 'reminder' ? 'เตือนความจำ' : 'กิจกรรม'), type: e.type === 'holiday' ? 'holiday' : (e.type === 'reminder' ? 'reminder' : 'personal'), title: e.title, sub: e.detail || '' }); });
+    state.holidays.forEach(h => { if ((h.date || '').slice(0,10) === dateStr) list.push({ kind: 'วันหยุด', type: 'holiday', title: h.name, sub: '' }); });
     return list;
   }
 
@@ -170,7 +170,7 @@
     }
     wrap.innerHTML = items.map(i => `
       <div class="agenda-item">
-        <div class="agenda-kind">${i.kind}</div>
+        <div class="agenda-kind kind-${i.type}">${i.kind}</div>
         <div>
           <div class="agenda-title">${escapeHtml(i.title)}</div>
           ${i.sub ? `<div class="agenda-sub">${escapeHtml(i.sub)}</div>` : ''}
@@ -189,19 +189,21 @@
       if (!t.dueDate) return;
       const d = new Date(t.dueDate);
       if (d.getFullYear() === y && d.getMonth() === m) {
-        rows.push({ date: t.dueDate, type: 'งาน', title: t.title, status: t.status === 'done' ? '<span class="stamp-done">เสร็จ</span>' : (isOverdue(t.dueDate, t.status) ? '<span class="tag">เลยกำหนด</span>' : '<span class="tag outline">กำลังทำ</span>') });
+        rows.push({ date: t.dueDate, type: 'task', typeLabel: 'งาน', title: t.title, status: t.status === 'done' ? '<span class="stamp-done">เสร็จ</span>' : (isOverdue(t.dueDate, t.status) ? '<span class="tag">เลยกำหนด</span>' : '<span class="tag outline">กำลังทำ</span>') });
       }
     });
     state.events.forEach(e => {
       const d = new Date(e.date);
       if (d.getFullYear() === y && d.getMonth() === m) {
-        rows.push({ date: e.date, type: e.type === 'holiday' ? 'วันหยุด' : (e.type === 'reminder' ? 'เตือนความจำ' : 'กิจกรรม'), title: e.title, status: '' });
+        const type = e.type === 'holiday' ? 'holiday' : (e.type === 'reminder' ? 'reminder' : 'personal');
+        const typeLabel = e.type === 'holiday' ? 'วันหยุด' : (e.type === 'reminder' ? 'เตือนความจำ' : 'กิจกรรม');
+        rows.push({ date: e.date, type, typeLabel, title: e.title, status: '' });
       }
     });
     state.holidays.forEach(h => {
       const d = new Date(h.date);
       if (d.getFullYear() === y && d.getMonth() === m) {
-        rows.push({ date: h.date, type: 'วันหยุด', title: h.name, status: '' });
+        rows.push({ date: h.date, type: 'holiday', typeLabel: 'วันหยุด', title: h.name, status: '' });
       }
     });
     rows.sort((a,b) => new Date(a.date) - new Date(b.date));
@@ -216,7 +218,7 @@
     tbody.innerHTML = rows.map(r => `
       <tr>
         <td class="ledger-date">${fmtDate(r.date)}</td>
-        <td><span class="tag outline">${r.type}</span></td>
+        <td><span class="tag kind-${r.type}">${r.typeLabel}</span></td>
         <td>${escapeHtml(r.title)}</td>
         <td>${r.status}</td>
       </tr>

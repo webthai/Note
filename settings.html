@@ -124,9 +124,9 @@
 
   let holidaysCache = [];
 
-  async function loadHolidays() {
+  async function loadHolidays(force) {
     try {
-      const data = await Api.call('holidaysList', {});
+      const data = await Api.call('holidaysList', { force: force ? 1 : undefined });
       holidaysCache = data.holidays;
       const tbody = document.getElementById('holidaysBody');
       if (data.holidays.length === 0) {
@@ -216,9 +216,9 @@
   let templatesCache = [];
   const MONTH_NAMES_TH = ['','ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
 
-  async function loadTemplates() {
+  async function loadTemplates(force) {
     try {
-      const data = await Api.call('holidayTemplatesList', { userId: user.id });
+      const data = await Api.call('holidayTemplatesList', { userId: user.id, force: force ? 1 : undefined });
       templatesCache = data.templates;
       const tbody = document.getElementById('templatesBody');
       if (templatesCache.length === 0) {
@@ -290,7 +290,7 @@
 
   document.getElementById('addTemplateBtn').addEventListener('click', () => openTemplateModal(null));
 
-  wireRefreshButton('refreshBtn', async () => { await loadUsers(); await loadHolidays(); await loadTemplates(); });
+  wireRefreshButton('refreshBtn', async () => { await loadUsers(); await loadHolidays(true); await loadTemplates(true); });
 
   loadUsers();
   loadHolidays();

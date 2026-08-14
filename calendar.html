@@ -61,12 +61,12 @@
   let viewMonth = new Date().getMonth();
   let selectedDate = fmtDateInput(new Date());
 
-  async function load() {
+  async function load(force) {
     const cacheKey = 'dashboard_' + user.id;
     const cached = Api.getCached(cacheKey);
-    if (cached) { state = cached; renderCalendar(); renderAgenda(); }
+    if (cached && !force) { state = cached; renderCalendar(); renderAgenda(); }
     try {
-      state = await Api.call('getDashboard', { userId: user.id });
+      state = await Api.call('getDashboard', { userId: user.id, force: force ? 1 : undefined });
       Api.setCached(cacheKey, state);
       renderCalendar();
       renderAgenda();
@@ -187,7 +187,7 @@
   }
 
   document.getElementById('addEventBtn').addEventListener('click', () => openEventModal(null));
-  wireRefreshButton('refreshBtn', load);
+  wireRefreshButton('refreshBtn', () => load(true));
 
   load();
 </script>

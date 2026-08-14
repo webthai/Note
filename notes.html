@@ -69,12 +69,12 @@
     else window.removeEventListener('beforeunload', beforeUnloadHandler);
   }
 
-  async function load() {
+  async function load(force) {
     const cacheKey = 'notes_' + user.id;
     const cached = Api.getCached(cacheKey);
-    if (cached && notes.length === 0) { notes = cached; renderList(); }
+    if (cached && notes.length === 0 && !force) { notes = cached; renderList(); }
     try {
-      const data = await Api.call('notesList', { userId: user.id });
+      const data = await Api.call('notesList', { userId: user.id, force: force ? 1 : undefined });
       notes = data.notes;
       Api.setCached(cacheKey, notes);
       renderList();
@@ -170,7 +170,7 @@
     wireRefreshButton('refreshBtn', async () => {
     if (dirty && !confirm('มีการแก้ไขที่ยังไม่บันทึก รีเฟรชแล้วจะหายไป ต้องการดำเนินการต่อหรือไม่?')) return;
     setDirty(false);
-    await load();
+    await load(true);
   });
   load();
 </script>

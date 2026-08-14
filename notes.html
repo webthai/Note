@@ -11,7 +11,7 @@
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,700;1,9..144,500&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap">
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -57,6 +57,18 @@
   let activeId = null;
   let dirty = false;
 
+  // Only attach beforeunload WHILE there's something unsaved — its mere
+  // presence disables the browser's back/forward cache (bfcache), which
+  // makes every page navigation slower. Attaching it only when needed
+  // keeps bfcache available the rest of the time.
+  function beforeUnloadHandler(e) { e.preventDefault(); e.returnValue = ''; }
+  function setDirty(value) {
+    if (dirty === value) return;
+    dirty = value;
+    if (dirty) window.addEventListener('beforeunload', beforeUnloadHandler);
+    else window.removeEventListener('beforeunload', beforeUnloadHandler);
+  }
+
   async function load() {
     const cacheKey = 'notes_' + user.id;
     const cached = Api.getCached(cacheKey);
@@ -87,7 +99,7 @@
       item.addEventListener('click', () => {
         if (dirty && !confirm('มีการแก้ไขที่ยังไม่บันทึก ต้องการออกจากบันทึกนี้หรือไม่?')) return;
         activeId = item.dataset.id;
-        dirty = false;
+        setDirty(false);
         renderList();
         renderEditor();
       });
@@ -112,9 +124,9 @@
         </div>
       </div>
     `;
-    document.getElementById('titleInput').addEventListener('input', () => dirty = true);
-    document.getElementById('contentInput').addEventListener('input', () => dirty = true);
-    document.getElementById('tagsInput').addEventListener('input', () => dirty = true);
+    document.getElementById('titleInput').addEventListener('input', () => setDirty(true));
+    document.getElementById('contentInput').addEventListener('input', () => setDirty(true));
+    document.getElementById('tagsInput').addEventListener('input', () => setDirty(true));
 
     document.getElementById('saveBtn').addEventListener('click', async (e) => {
       const title = document.getElementById('titleInput').value.trim() || 'ไม่มีชื่อ';
@@ -123,7 +135,7 @@
       setLoading(e.target, true);
       try {
         await Api.call('noteUpdate', { id: note.id, userId: user.id, title, content, tags });
-        dirty = false;
+        setDirty(false);
         toast('บันทึกแล้ว');
         await load();
       } catch (err) { toast(err.message); }
@@ -134,7 +146,7 @@
       if (!confirm('ลบบันทึกนี้ถาวรหรือไม่?')) return;
       try {
         await Api.call('noteDelete', { id: note.id, userId: user.id });
-        activeId = null; dirty = false;
+        activeId = null; setDirty(false);
         toast('ลบแล้ว');
         await load();
       } catch (err) { toast(err.message); }
@@ -145,7 +157,7 @@
     if (dirty && !confirm('มีการแก้ไขที่ยังไม่บันทึก ต้องการสร้างบันทึกใหม่หรือไม่?')) return;
     try {
       const data = await Api.call('noteCreate', { userId: user.id, title: 'บันทึกใหม่', content: '', tags: '' });
-      dirty = false;
+      setDirty(false);
       await load();
       activeId = data.note.id;
       renderList();
@@ -155,11 +167,9 @@
     } catch (err) { toast(err.message); }
   });
 
-  window.addEventListener('beforeunload', (e) => { if (dirty) { e.preventDefault(); e.returnValue = ''; } });
-
-  wireRefreshButton('refreshBtn', async () => {
+    wireRefreshButton('refreshBtn', async () => {
     if (dirty && !confirm('มีการแก้ไขที่ยังไม่บันทึก รีเฟรชแล้วจะหายไป ต้องการดำเนินการต่อหรือไม่?')) return;
-    dirty = false;
+    setDirty(false);
     await load();
   });
   load();

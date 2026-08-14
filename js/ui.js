@@ -49,6 +49,26 @@ function renderSidebar(activePage) {
 
   if (window.Notify) Notify.refreshButton();
   renderMobileTopbar(activePage);
+  prefetchOtherPages(links, activePage);
+}
+
+/**
+ * This is a multi-page app (each nav click is a full page load, not an
+ * SPA route), so the browser would otherwise re-fetch shared CSS/JS on
+ * every click. <link rel="prefetch"> quietly warms the browser's cache
+ * for the *other* pages while the current one is idle, so clicking to
+ * them feels closer to instant. Low priority — never competes with the
+ * current page's own loading.
+ */
+function prefetchOtherPages(links, activePage) {
+  links.forEach(l => {
+    if (l.key === activePage) return;
+    if (document.querySelector(`link[rel="prefetch"][href="${l.href}"]`)) return;
+    const link = document.createElement('link');
+    link.rel = 'prefetch';
+    link.href = l.href;
+    document.head.appendChild(link);
+  });
 }
 
 /** Compact top bar shown only on narrow screens; toggles the sidebar drawer open/closed. */
